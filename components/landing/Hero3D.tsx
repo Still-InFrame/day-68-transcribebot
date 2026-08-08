@@ -105,9 +105,63 @@ void main() {
 }
 `;
 
+// Inner plasma core: slow nebula swirl + one counter-rotating ribbon. The
+// counter-motion against the outer shell is what makes the inside read as
+// alive rather than painted on.
+const VERT_INNER = /* glsl */ `
+varying vec3 vObjN;
+varying vec3 vNormal;
+varying vec3 vView;
+void main() {
+  vObjN = normal;
+  vNormal = normalize(normalMatrix * normal);
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vView = normalize(-mv.xyz);
+  gl_Position = projectionMatrix * mv;
+}
+`;
+
+const FRAG_INNER = /* glsl */ `
+${NOISE}
+uniform float uTime;
+uniform float uLevel;
+varying vec3 vObjN;
+varying vec3 vNormal;
+varying vec3 vView;
+
+void main() {
+  vec3 n = normalize(vObjN);
+
+  // Two slow octaves of drifting noise = nebula clouds.
+  float s1 = snoise(n * 2.2 + vec3(0.0, uTime * 0.055, uTime * 0.03));
+  float s2 = snoise(n * 4.6 - vec3(uTime * 0.04, 0.0, uTime * 0.05));
+  float plasma = smoothstep(0.05, 0.95, 0.5 + 0.5 * (s1 + 0.5 * s2));
+
+  // Bright toward the center of the disc — fakes a volumetric glow core.
+  float core = pow(abs(dot(normalize(vNormal), normalize(vView))), 1.6);
+
+  vec3 violet  = vec3(0.545, 0.361, 0.965);
+  vec3 cyan    = vec3(0.133, 0.827, 0.933);
+  vec3 magenta = vec3(0.910, 0.475, 0.977);
+
+  vec3 cloud = mix(violet, magenta, 0.5 + 0.5 * s1) * plasma;
+  // One dim ribbon drifting the OPPOSITE way to the outer shell.
+  float band = pow(0.5 + 0.5 * sin(3.0 * atan(n.z, n.x) + s2 * 2.0 - uTime * -0.15), 20.0);
+  vec3 color = (cloud * 0.5 + band * cyan * 0.35) * core * (0.55 + uLevel * 0.9);
+
+  float facing = gl_FrontFacing ? 1.0 : 0.5;
+  gl_FragColor = vec4(color * facing, core * 0.8);
+}
+`;
+
 function Orb({ level }: { level: () => number }) {
   const smoothed = useRef(0);
+  const innerRef = useRef<THREE.Mesh>(null);
   const uniforms = useMemo(
+    () => ({ uTime: { value: 0 }, uLevel: { value: 0 } }),
+    [],
+  );
+  const innerUniforms = useMemo(
     () => ({ uTime: { value: 0 }, uLevel: { value: 0 } }),
     [],
   );
@@ -116,23 +170,45 @@ function Orb({ level }: { level: () => number }) {
     const target = Math.min(1, Math.max(0, level()));
     const rate = target > smoothed.current ? 14 : 3.5;
     smoothed.current += (target - smoothed.current) * Math.min(1, dt * rate);
-    uniforms.uTime.value = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime;
+    uniforms.uTime.value = t;
     uniforms.uLevel.value = smoothed.current;
+    innerUniforms.uTime.value = t;
+    innerUniforms.uLevel.value = smoothed.current;
+    if (innerRef.current) {
+      // Slow counter-rotation against the auto-rotating camera.
+      innerRef.current.rotation.y -= dt * 0.06;
+      innerRef.current.rotation.z = Math.sin(t * 0.05) * 0.2;
+    }
   });
 
   return (
-    <mesh>
-      <icosahedronGeometry args={[1, 64]} />
-      <shaderMaterial
-        uniforms={uniforms}
-        vertexShader={VERT}
-        fragmentShader={FRAG}
-        transparent
-        depthWrite={false}
-        side={THREE.DoubleSide}
-        blending={THREE.AdditiveBlending}
-      />
-    </mesh>
+    <group>
+      <mesh>
+        <icosahedronGeometry args={[1, 64]} />
+        <shaderMaterial
+          uniforms={uniforms}
+          vertexShader={VERT}
+          fragmentShader={FRAG}
+          transparent
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      <mesh ref={innerRef} scale={0.58}>
+        <icosahedronGeometry args={[1, 32]} />
+        <shaderMaterial
+          uniforms={innerUniforms}
+          vertexShader={VERT_INNER}
+          fragmentShader={FRAG_INNER}
+          transparent
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+    </group>
   );
 }
 
