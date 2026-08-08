@@ -1,26 +1,87 @@
 @import "tailwindcss";
 
+/* TranscribeBot is dark-by-design: the product is a light-emitting caption
+   surface, so there is no light theme. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #07070d;
+  --surface: #0d0d17;
+  --foreground: #e6e9f2;
+  --muted: #8b90a3;
+  --aurora-violet: #8b5cf6;
+  --aurora-cyan: #22d3ee;
+  --aurora-magenta: #e879f9;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-aurora-violet: var(--aurora-violet);
+  --color-aurora-cyan: var(--aurora-cyan);
+  --color-aurora-magenta: var(--aurora-magenta);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Frosted panel used across the app + landing */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.aurora-text {
+  background: linear-gradient(
+    100deg,
+    var(--aurora-violet),
+    var(--aurora-cyan) 50%,
+    var(--aurora-magenta)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Live partial captions shimmer until finalized */
+@keyframes shimmer {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.95; }
+}
+.caption-partial {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.caption-final {
+  animation: fadeUp 0.35s ease-out both;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.35); }
+  50% { box-shadow: 0 0 0 12px rgba(139, 92, 246, 0); }
+}
+.pulse-glow {
+  animation: pulseGlow 2.2s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caption-partial,
+  .caption-final,
+  .pulse-glow {
+    animation: none;
+  }
 }
