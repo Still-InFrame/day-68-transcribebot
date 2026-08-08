@@ -26,9 +26,12 @@ export type SegmenterSnapshot = {
 const SENTENCE_END = /[.!?…。！？؟](["')\]»」』])?\s*$/;
 // Natural pauses are measured on the server audio clock (elapsed_ms), which
 // is steady; arrival times jitter up to ~1.4s mid-sentence and would shear
-// sentences. Spike data: intra-sentence elapsed gaps ≤ ~800ms, sentence
-// boundaries ≥ ~1200ms.
-const OUTPUT_PAUSE_MS = 1100;
+// sentences. The model reliably emits sentence punctuation (the primary
+// signal), so this pause fallback — needed only for unpunctuated flows — is
+// deliberately conservative: deliberate speakers pause 1.1–1.4s at commas.
+const OUTPUT_PAUSE_MS = 1600;
+// Never pause-split right after a clause separator — the thought isn't done.
+const CLAUSE_TAIL = /[,、،;:—–-]\s*$/;
 // Wall-clock stall guard: only fires when deltas stop entirely (reconnect,
 // speech end without punctuation) — the case where elapsed_ms freezes.
 const OUTPUT_STALL_MS = 3500;
@@ -56,7 +59,12 @@ export class Segmenter {
     const at = elapsedMs ?? wallMs;
     // A long audio-clock pause before this delta means the open text was a
     // complete (unpunctuated) sentence — close it before starting the next.
-    if (this.outText !== "" && elapsedMs !== null && at - this.outLastMs > OUTPUT_PAUSE_MS) {
+    if (
+      this.outText !== "" &&
+      elapsedMs !== null &&
+      at - this.outLastMs > OUTPUT_PAUSE_MS &&
+      !CLAUSE_TAIL.test(this.outText)
+    ) {
       this.finalizeOutput(this.outLastMs);
     }
     if (this.outText === "") this.outStartMs = at;
