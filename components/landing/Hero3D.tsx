@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 
-// Voice-reactive aurora orb, built as a shader rather than the generated GLB:
-// image-to-3D can't reproduce translucent glass, and a procedural surface
-// animates from the audio envelope for free (0 KB of geometry assets).
+// Voice-reactive aurora orb, modeled on the generated orb-a.png concept art:
+// thin iridescent light ribbons flowing inside a glass shell. Procedural
+// shader (0 KB of assets) — image-to-3D couldn't reproduce translucent glass.
+// Additive blending renders both sphere faces without sorting artifacts,
+// which is what creates the "ribbons on the far side of the glass" depth.
 
-const VERT = /* glsl */ `
-// Ashima simplex noise (condensed)
+const NOISE = /* glsl */ `
 vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
 vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
 vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
@@ -34,21 +36,23 @@ float snoise(vec3 v){
   vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;
   return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
 }
+`;
 
+const VERT = /* glsl */ `
+${NOISE}
 uniform float uTime;
 uniform float uLevel;
+varying vec3 vObjN;
 varying vec3 vNormal;
 varying vec3 vView;
-varying float vNoise;
 
 void main() {
-  float n = snoise(normal * 1.6 + vec3(uTime * 0.25));
-  float breath = 0.015 * sin(uTime * 0.8);
-  // Displacement ceiling keeps the sphere inside the camera frustum at full
-  // pulse — exceeding it clips the silhouette flat at the canvas edges.
-  float disp = n * (0.025 + uLevel * 0.08) + breath;
+  float n = snoise(normal * 1.6 + vec3(uTime * 0.22));
+  // Small ceiling: displacement beyond the frustum margin clips the
+  // silhouette flat at the canvas edges.
+  float disp = n * (0.02 + uLevel * 0.05) + 0.012 * sin(uTime * 0.8);
   vec3 pos = position + normal * disp;
-  vNoise = n;
+  vObjN = normal;
   vNormal = normalize(normalMatrix * normal);
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   vView = normalize(-mv.xyz);
@@ -57,31 +61,51 @@ void main() {
 `;
 
 const FRAG = /* glsl */ `
+${NOISE}
 uniform float uTime;
 uniform float uLevel;
+varying vec3 vObjN;
 varying vec3 vNormal;
 varying vec3 vView;
-varying float vNoise;
 
 void main() {
-  vec3 violet = vec3(0.545, 0.361, 0.965);
-  vec3 cyan = vec3(0.133, 0.827, 0.933);
+  vec3 n = normalize(vObjN);
+  float fres = pow(1.0 - abs(dot(normalize(vNormal), normalize(vView))), 2.4);
+
+  // Two slow warp fields bend the ribbon paths so nothing looks geometric.
+  float w1 = snoise(n * 1.8 + vec3(0.0, uTime * 0.10, 0.0));
+  float w2 = snoise(n * 2.6 + vec3(uTime * 0.07, 0.0, uTime * 0.05));
+
+  // Aurora ribbons: thin bright bands along warped sphere coordinates.
+  float band1 = pow(0.5 + 0.5 * sin(4.0 * n.y * 3.14159 + w1 * 3.5 + uTime * 0.35), 18.0);
+  float band2 = pow(0.5 + 0.5 * sin(3.0 * atan(n.z, n.x) + w2 * 3.0 - uTime * 0.28), 22.0);
+  float band3 = pow(0.5 + 0.5 * sin(5.0 * n.x * 3.14159 + (w1 + w2) * 2.5 + uTime * 0.22), 26.0);
+
+  vec3 violet  = vec3(0.545, 0.361, 0.965);
+  vec3 cyan    = vec3(0.133, 0.827, 0.933);
   vec3 magenta = vec3(0.910, 0.475, 0.977);
+  vec3 white   = vec3(0.95, 0.97, 1.0);
 
-  float fres = pow(1.0 - max(dot(vNormal, vView), 0.0), 2.6);
-  float swirl = 0.5 + 0.5 * sin(vNoise * 6.0 + uTime * 0.9);
-  vec3 base = mix(violet, cyan, swirl);
-  float band = 0.5 + 0.5 * sin(uTime * 0.5 + vNoise * 4.5 + vNormal.y * 3.0);
-  base = mix(base, magenta, band * 0.6);
+  // Voice flares the ribbons.
+  float boost = 0.7 + uLevel * 1.3;
+  vec3 ribbons =
+    (band1 * cyan * 1.35 + band2 * magenta * 1.15 + band3 * mix(violet, white, 0.35)) * boost;
 
-  vec3 color = base * (0.55 + uLevel * 0.7) + base * fres * 2.0;
-  float alpha = 0.34 + fres * 0.66;
-  gl_FragColor = vec4(color, alpha);
+  // Deep glass body + bright iridescent rim.
+  vec3 base = mix(violet * 0.16, cyan * 0.12, 0.5 + 0.5 * w1);
+  vec3 rim = mix(white, mix(cyan, magenta, 0.5 + 0.5 * sin(uTime * 0.3)), 0.4) * fres * 1.35;
+
+  // Far-side ribbons render dimmer — that's the see-through-glass depth.
+  float facing = gl_FrontFacing ? 1.0 : 0.4;
+  vec3 color = (base * 0.6 + ribbons + rim) * facing;
+
+  // Additive blending: alpha scales contribution; order-independent.
+  float a = clamp(0.10 + fres * 0.5 + (band1 + band2 + band3) * 0.5, 0.0, 1.0);
+  gl_FragColor = vec4(color, a * (gl_FrontFacing ? 1.0 : 0.55));
 }
 `;
 
 function Orb({ level }: { level: () => number }) {
-  const mesh = useRef<THREE.Mesh>(null);
   const smoothed = useRef(0);
   const uniforms = useMemo(
     () => ({ uTime: { value: 0 }, uLevel: { value: 0 } }),
@@ -90,19 +114,14 @@ function Orb({ level }: { level: () => number }) {
 
   useFrame((state, dt) => {
     const target = Math.min(1, Math.max(0, level()));
-    // fast attack, slow release — reads as "speech" rather than flicker
     const rate = target > smoothed.current ? 14 : 3.5;
     smoothed.current += (target - smoothed.current) * Math.min(1, dt * rate);
     uniforms.uTime.value = state.clock.elapsedTime;
     uniforms.uLevel.value = smoothed.current;
-    if (mesh.current) {
-      mesh.current.rotation.y += dt * 0.12;
-      mesh.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.18) * 0.12;
-    }
   });
 
   return (
-    <mesh ref={mesh}>
+    <mesh>
       <icosahedronGeometry args={[1, 64]} />
       <shaderMaterial
         uniforms={uniforms}
@@ -110,6 +129,8 @@ function Orb({ level }: { level: () => number }) {
         fragmentShader={FRAG}
         transparent
         depthWrite={false}
+        side={THREE.DoubleSide}
+        blending={THREE.AdditiveBlending}
       />
     </mesh>
   );
@@ -144,9 +165,19 @@ export default function Hero3D({ level }: { level: () => number }) {
           dpr={[1, 1.75]}
           camera={{ position: [0, 0, 2.85], fov: 45 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-          className="relative"
+          className="relative cursor-grab active:cursor-grabbing"
+          title="Drag to spin"
         >
           <Orb level={level} />
+          <OrbitControls
+            enableZoom={false}
+            enablePan={false}
+            enableDamping
+            dampingFactor={0.08}
+            rotateSpeed={0.9}
+            autoRotate
+            autoRotateSpeed={0.7}
+          />
         </Canvas>
       )}
     </div>
