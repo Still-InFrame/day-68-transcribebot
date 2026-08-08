@@ -1,5 +1,6 @@
 const ROWS: Array<[string, boolean, string]> = [
   ["Live dual-language captions, word by word", true, "Phrase-at-a-time"],
+  ["QR listen-along rooms — every viewer in their own language", true, "—"],
   ["Stage mode for projectors and second screens", true, "—"],
   ["Timestamped transcripts, TXT + SRT export", true, "—"],
   ["Session history you can revisit", true, "—"],

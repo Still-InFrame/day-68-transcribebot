@@ -1,5 +1,6 @@
 import Link from "next/link";
 import HeroSection from "@/components/landing/HeroSection";
+import FilmSection from "@/components/landing/FilmSection";
 import FeatureLoops from "@/components/landing/FeatureLoops";
 import Comparison from "@/components/landing/Comparison";
 import BabelCounter from "@/components/landing/BabelCounter";
@@ -9,7 +10,7 @@ import FAQ from "@/components/landing/FAQ";
 const STEPS = [
   ["Speak", "Tap the mic and talk naturally, in any of 70+ languages. No setup, no account."],
   ["Watch it translate", "Dual-language captions stream in about a second behind you — original ghosted, translation bold."],
-  ["Share the moment", "Voice playback for one listener, stage mode for a room, transcript exports for everyone after."],
+  ["Fill the room", "One tap opens a listen-along room: a QR on your screen, live captions on every phone that scans — each viewer in their own language."],
 ] as const;
 
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
         </Link>
         <div className="hidden sm:flex items-center gap-5 text-sm text-muted">
           <a href="#features" className="hover:text-foreground transition">Features</a>
+          <a href="#rooms" className="hover:text-foreground transition">Rooms</a>
           <a href="#pricing" className="hover:text-foreground transition">Pricing</a>
           <a href="#faq" className="hover:text-foreground transition">FAQ</a>
         </div>
@@ -53,6 +55,7 @@ export default function Home() {
       </section>
 
       <FeatureLoops />
+      <FilmSection />
       <Comparison />
       <BabelCounter />
       <Pricing />

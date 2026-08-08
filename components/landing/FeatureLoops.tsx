@@ -19,7 +19,7 @@ const FEATURES = [
     video: "/loops/meeting.mp4",
     poster: "/loops/meeting-poster.jpg",
     title: "Every meeting, on record",
-    body: "Dual-language captions with timestamps, exportable as text or SRT. Sign in and every session lands in your searchable history.",
+    body: "Dual-language captions with timestamps, exportable as text or SRT. Sign in and every session lands in your history.",
   },
 ];
 

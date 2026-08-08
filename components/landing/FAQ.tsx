@@ -1,7 +1,11 @@
 const ITEMS: Array<[string, string]> = [
   [
     "What happens to my audio?",
-    "It streams to OpenAI's realtime translation API, gets translated on the fly, and is not stored. Captions exist only on your screen — unless you're signed in and a session finishes, in which case the transcript (text only, never audio) is saved to your private history.",
+    "It streams to OpenAI's realtime translation API, gets translated on the fly, and is not stored. Captions exist only on your screen — unless you're signed in and a session finishes, in which case the transcript (text only, never audio) is saved to your private history. In rooms, viewers receive caption text only; your audio never reaches them.",
+  ],
+  [
+    "How do listen-along rooms work?",
+    "Start a session, tap Broadcast, and put the QR on a screen. Anyone who scans picks a language and reads live captions on their phone — no app, no account, no viewer limit. Viewers matching your target language stream word-by-word; other languages arrive sentence-by-sentence, about a second behind. Broadcasting needs a free sign-in; joining never does.",
   ],
   [
     "Which languages does it support?",

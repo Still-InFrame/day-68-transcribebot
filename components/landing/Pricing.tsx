@@ -27,7 +27,14 @@ export default function Pricing() {
       name: "Try it",
       price: "Free",
       sub: "no account",
-      features: ["3-minute live sessions, 3 a day", "All 13 output languages", "Stage mode + exports"],
+      features: [
+        "3-minute live sessions, 3 per day",
+        "Speak 70+ languages, translate into all 13",
+        "Dual-language captions + translated voice playback",
+        "Stage mode for projectors and second screens",
+        "TXT + SRT transcript export",
+        "Join any listen-along room — free, unlimited",
+      ],
       cta: (
         <Link href="/app" className="block text-center glass rounded-xl py-2.5 hover:bg-white/10 transition">
           Start translating
@@ -38,7 +45,14 @@ export default function Pricing() {
       name: "Free account",
       price: "$0",
       sub: "one-click Google sign-in",
-      features: ["15-minute sessions, 60 min/day", "Saved session history", "Everything in Try it"],
+      features: [
+        "Everything in Try it",
+        "15-minute sessions, 60 minutes per day",
+        "Broadcast rooms: QR + link, unlimited viewers",
+        "Viewers pick any of 13 caption languages at once",
+        "Word-by-word streaming in your target language",
+        "Session history — revisit, re-export, delete anytime",
+      ],
       cta: (
         <Link
           href="/app"
@@ -53,7 +67,13 @@ export default function Pricing() {
       name: "Pro",
       price: "$12/mo",
       sub: "founding waitlist",
-      features: ["Unlimited minutes (planned)", "Custom glossary for names & jargon (planned)", "Priority sessions (planned)"],
+      features: [
+        "Everything in Free account",
+        "Unlimited translation minutes (planned)",
+        "Voice channels in rooms — translated audio per language (planned)",
+        "Custom glossary for names & jargon (planned)",
+        "Priority capacity on packed days (planned)",
+      ],
       cta:
         state === "done" ? (
           <p className="text-center text-sm text-emerald-400 py-2.5">You're on the list ✓</p>

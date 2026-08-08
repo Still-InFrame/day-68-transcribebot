@@ -29,8 +29,9 @@ export default function HeroSection() {
         <LanguageStrip active={lang} onChange={setLang} />
         <p className="text-muted max-w-md leading-relaxed">
           Speak in any of 70+ languages. TranscribeBot live-translates your
-          voice into captions and speech — in under a second. No account
-          needed, and your audio is never stored.
+          voice into captions and speech in under a second — on your screen,
+          or on every phone in the room through a QR code. No account needed
+          to start, and your audio is never stored.
         </p>
         <ReplayDemo lang={lang} envelope={envelope} />
       </div>
