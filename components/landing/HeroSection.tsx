@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import ReplayDemo from "./ReplayDemo";
 import LanguageStrip from "./LanguageStrip";
@@ -18,19 +18,21 @@ const Hero3D = dynamic(() => import("./Hero3D"), {
 });
 
 export default function HeroSection() {
-  // ReplayDemo produces the speech envelope; the orb consumes it.
+  // ReplayDemo produces the speech envelope; the orb consumes it. The active
+  // language links the morphing headline to the demo's output language.
   const envelope = useRef<() => number>(() => 0);
+  const [lang, setLang] = useState("en");
 
   return (
     <section className="max-w-6xl mx-auto px-4 pt-10 pb-20 grid lg:grid-cols-2 gap-10 items-center">
       <div className="space-y-8">
-        <LanguageStrip />
+        <LanguageStrip active={lang} onChange={setLang} />
         <p className="text-muted max-w-md leading-relaxed">
           Speak in any of 70+ languages. TranscribeBot live-translates your
           voice into captions and speech — in under a second. No account
           needed, and your audio is never stored.
         </p>
-        <ReplayDemo envelope={envelope} />
+        <ReplayDemo lang={lang} envelope={envelope} />
       </div>
       <div className="order-first lg:order-none">
         <Hero3D level={() => envelope.current()} />

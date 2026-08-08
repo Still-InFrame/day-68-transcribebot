@@ -23,20 +23,29 @@ const HEADLINES: Record<string, string> = {
   pl: "Jeden głos. Wszystkie języki.",
 };
 
-export default function LanguageStrip() {
-  const [active, setActive] = useState(0);
+export default function LanguageStrip({
+  active,
+  onChange,
+}: {
+  active: string;
+  onChange: (code: string) => void;
+}) {
   const lastClick = useRef(0);
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = setInterval(() => {
-      if (performance.now() - lastClick.current < 6000) return;
-      setActive((a) => (a + 1) % OUTPUT_LANGUAGES.length);
-    }, 2800);
+      if (performance.now() - lastClick.current < 8000) return;
+      const idx = OUTPUT_LANGUAGES.findIndex((l) => l.code === activeRef.current);
+      onChange(OUTPUT_LANGUAGES[(idx + 1) % OUTPUT_LANGUAGES.length].code);
+    }, 5200); // slow enough for the demo to show a line or two per language
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const lang = OUTPUT_LANGUAGES[active];
+  const lang = OUTPUT_LANGUAGES.find((l) => l.code === active) ?? OUTPUT_LANGUAGES[0];
 
   return (
     <div className="space-y-6">
@@ -57,15 +66,15 @@ export default function LanguageStrip() {
         </AnimatePresence>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {OUTPUT_LANGUAGES.map((l, i) => (
+        {OUTPUT_LANGUAGES.map((l) => (
           <button
             key={l.code}
             onClick={() => {
               lastClick.current = performance.now();
-              setActive(i);
+              onChange(l.code);
             }}
             className={`rounded-full px-3 py-1 text-xs transition border ${
-              i === active
+              l.code === active
                 ? "border-aurora-cyan/70 text-foreground bg-white/5"
                 : "border-white/10 text-muted hover:text-foreground hover:bg-white/5"
             }`}
