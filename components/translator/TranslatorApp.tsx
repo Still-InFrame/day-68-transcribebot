@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { langByCode } from "@/lib/languages";
 import AuthButton from "@/components/AuthButton";
@@ -25,6 +25,10 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
   const [gate, setGate] = useState<"none" | "explain" | "denied">("none");
   const [stage, setStage] = useState(false);
   const [presets, setPresets] = useState<Preset[]>([]);
+  // Listen-along rooms (feature-flagged rollout via ?rooms=1)
+  const roomsEnabled = search.get("rooms") === "1";
+  const [room, setRoom] = useState<{ code: string; token: string; qr: string } | null>(null);
+  const lastRelayedRef = useRef(0);
 
   useEffect(() => {
     const saved = localStorage.getItem("tb.target");
@@ -52,6 +56,45 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
   useEffect(() => {
     if (s.errorCode === "mic_denied") setGate("denied");
   }, [s.errorCode]);
+
+  // Line ids restart at 1 each session; reset the relay cursor with them.
+  useEffect(() => {
+    if (s.status === "connecting") lastRelayedRef.current = 0;
+  }, [s.status]);
+
+  // Fan finalized lines out to the room (fire-and-forget; captions on the
+  // speaker's screen never wait on the relay).
+  useEffect(() => {
+    if (!room) return;
+    const fresh = s.lines.filter((l) => l.id > lastRelayedRef.current);
+    if (fresh.length === 0) return;
+    lastRelayedRef.current = fresh[fresh.length - 1].id;
+    for (const l of fresh) {
+      void fetch("/api/room/relay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: room.code,
+          token: room.token,
+          line: { id: l.id, source: l.source, translated: l.translated, targetLang },
+        }),
+      }).catch(() => {});
+    }
+  }, [s.lines, room, targetLang]);
+
+  async function startBroadcast() {
+    const r = await fetch("/api/room", { method: "POST" });
+    if (!r.ok) return;
+    const { code, token } = await r.json();
+    const QRCode = (await import("qrcode")).default;
+    const qr = await QRCode.toDataURL(`${window.location.origin}/r/${code}`, {
+      margin: 1,
+      width: 240,
+      color: { dark: "#e6e9f2", light: "#00000000" },
+    });
+    lastRelayedRef.current = 0;
+    setRoom({ code, token, qr });
+  }
 
   const busy = ["mic", "connecting", "live", "reconnecting", "finishing"].includes(s.status);
   const lang = langByCode(targetLang);
@@ -116,8 +159,43 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
         >
           ⛶ Stage
         </button>
+        {roomsEnabled && !room && (
+          <button
+            onClick={startBroadcast}
+            className="glass rounded-xl px-3 py-2 text-sm hover:bg-white/10"
+            title="Open a listen-along room — audience reads in their own language"
+          >
+            ((•)) Broadcast
+          </button>
+        )}
         <AuthButton refreshKey={s.status === "ended" ? 1 : 0} />
       </header>
+
+      {room && (
+        <div className="glass rounded-2xl p-4 mb-3 flex items-center gap-4 flex-wrap">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={room.qr} alt={`QR code for room ${room.code}`} className="w-24 h-24" />
+          <div className="flex-1 min-w-40">
+            <p className="font-semibold tracking-[0.3em] text-xl">{room.code}</p>
+            <p className="text-xs text-muted leading-relaxed">
+              Audience: scan, or open /r/{room.code} — everyone picks their own
+              language. Captions fan out as you speak.
+            </p>
+            <button
+              className="text-xs text-aurora-cyan hover:underline"
+              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/r/${room.code}`)}
+            >
+              Copy link
+            </button>
+          </div>
+          <button
+            onClick={() => setRoom(null)}
+            className="glass rounded-lg px-3 py-1.5 text-sm hover:bg-white/10 text-muted"
+          >
+            End room
+          </button>
+        </div>
+      )}
 
       <div className="glass rounded-2xl px-4 pt-3 pb-1">
         <div className="flex items-center gap-3 text-sm pb-1">

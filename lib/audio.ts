@@ -32,7 +32,19 @@ export async function getFileStream(
   src.onended = () => resolveDone();
   // Caller starts playback once the realtime session is live — audio played
   // during connection setup would translate into the void.
-  return { stream: dest.stream, node: src, done, start: () => src.start(), stop: () => src.stop() };
+  return {
+    stream: dest.stream,
+    node: src,
+    done,
+    start: () => src.start(),
+    // stop() before start() throws InvalidStateError (e.g. connect failed
+    // before playback began) — teardown must never explode.
+    stop: () => {
+      try {
+        src.stop();
+      } catch {}
+    },
+  };
 }
 
 export function makeAnalyser(

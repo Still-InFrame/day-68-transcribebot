@@ -77,10 +77,16 @@ export function useTranslatorSession() {
     [voiceOn],
   );
 
+  // Must never throw: it runs in catch blocks, and an exception here would
+  // swallow the error-state transition (observed: UI frozen at "Connecting…").
   function cleanupMedia() {
-    micRef.current?.getTracks().forEach((t) => t.stop());
+    try {
+      micRef.current?.getTracks().forEach((t) => t.stop());
+    } catch {}
     micRef.current = null;
-    fileStopRef.current?.();
+    try {
+      fileStopRef.current?.();
+    } catch {}
     fileStopRef.current = null;
     ctxRef.current?.close().catch(() => {});
     ctxRef.current = null;
@@ -228,7 +234,7 @@ export function useTranslatorSession() {
           if (sec >= capSec) void stop("cap");
         }, 500);
       } catch (e) {
-        cleanupMedia();
+        // Status first: the user must see the error even if cleanup misbehaves.
         if (e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "PermissionDeniedError")) {
           setErrorCode("mic_denied");
         } else if (e instanceof ClientError) {
@@ -237,6 +243,7 @@ export function useTranslatorSession() {
           setErrorCode("unknown");
         }
         setStatus("error");
+        cleanupMedia();
       }
     },
     [capSec, stop],
