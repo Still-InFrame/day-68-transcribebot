@@ -43,8 +43,10 @@ varying float vNoise;
 
 void main() {
   float n = snoise(normal * 1.6 + vec3(uTime * 0.25));
-  float breath = 0.02 * sin(uTime * 0.8);
-  float disp = n * (0.03 + uLevel * 0.16) + breath;
+  float breath = 0.015 * sin(uTime * 0.8);
+  // Displacement ceiling keeps the sphere inside the camera frustum at full
+  // pulse — exceeding it clips the silhouette flat at the canvas edges.
+  float disp = n * (0.025 + uLevel * 0.08) + breath;
   vec3 pos = position + normal * disp;
   vNoise = n;
   vNormal = normalize(normalMatrix * normal);
@@ -101,7 +103,7 @@ function Orb({ level }: { level: () => number }) {
 
   return (
     <mesh ref={mesh}>
-      <icosahedronGeometry args={[1, 48]} />
+      <icosahedronGeometry args={[1, 64]} />
       <shaderMaterial
         uniforms={uniforms}
         vertexShader={VERT}
@@ -140,7 +142,7 @@ export default function Hero3D({ level }: { level: () => number }) {
       ) : (
         <Canvas
           dpr={[1, 1.75]}
-          camera={{ position: [0, 0, 2.45], fov: 45 }}
+          camera={{ position: [0, 0, 2.85], fov: 45 }}
           gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
           className="relative"
         >

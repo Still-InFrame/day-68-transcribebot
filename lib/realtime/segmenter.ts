@@ -35,7 +35,10 @@ const CLAUSE_TAIL = /[,、،;:—–-]\s*$/;
 // Wall-clock stall guard: only fires when deltas stop entirely (reconnect,
 // speech end without punctuation) — the case where elapsed_ms freezes.
 const OUTPUT_STALL_MS = 3500;
-const INPUT_GAP_MS = 900;
+// Real speakers breathe mid-sentence; the transcribe model flushes fragments
+// on its own VAD. Gap-finalize late, and glue continuation fragments back
+// onto the previous source (see finalizeInput).
+const INPUT_GAP_MS = 2000;
 
 export class Segmenter {
   private lines: CaptionLine[] = [];
@@ -54,6 +57,9 @@ export class Segmenter {
 
   // Source sentences waiting for their translated line, and vice versa.
   private pendingSources: string[] = [];
+  // Where the most recent source text landed, so continuation fragments can
+  // be appended to it instead of becoming orphan "sentences".
+  private lastSource: { kind: "line"; line: CaptionLine } | { kind: "pending" } | null = null;
 
   pushOutput(delta: string, wallMs: number, elapsedMs: number | null) {
     const at = elapsedMs ?? wallMs;
@@ -100,13 +106,20 @@ export class Segmenter {
     const translated = this.outText.trim();
     this.outText = "";
     if (!translated) return;
-    this.lines.push({
+    const source = this.pendingSources.shift() ?? "";
+    const line: CaptionLine = {
       id: this.nextId++,
-      source: this.pendingSources.shift() ?? "",
+      source,
       translated,
       startMs: Math.max(0, this.outStartMs),
       endMs: Math.max(endMs, this.outStartMs + 1),
-    });
+    };
+    this.lines.push(line);
+    // If the tracked pending source just moved into this line, follow it so
+    // continuation fragments keep landing in the right place.
+    if (source && this.lastSource?.kind === "pending" && this.pendingSources.length === 0) {
+      this.lastSource = { kind: "line", line };
+    }
   }
 
   // Pair by time window, not blind FIFO — sentence counts drift when the
@@ -117,6 +130,21 @@ export class Segmenter {
     const source = this.inText.trim();
     this.inText = "";
     if (!source) return;
+
+    // Continuation fragment: the previous source ended mid-thought (no
+    // sentence punctuation) — glue this text onto it rather than treating a
+    // breath pause as a new sentence.
+    if (this.lastSource) {
+      const prev =
+        this.lastSource.kind === "line"
+          ? this.lastSource.line.source
+          : this.pendingSources[this.pendingSources.length - 1];
+      if (prev && !SENTENCE_END.test(prev)) {
+        if (this.lastSource.kind === "line") this.lastSource.line.source = `${prev} ${source}`;
+        else this.pendingSources[this.pendingSources.length - 1] = `${prev} ${source}`;
+        return;
+      }
+    }
 
     const spokenAt = atMs - 1200;
     let best: CaptionLine | null = null;
@@ -134,8 +162,13 @@ export class Segmenter {
     const openDist = this.outText
       ? Math.abs(spokenAt - this.outStartMs)
       : Infinity;
-    if (best && bestDist <= openDist) best.source = source;
-    else this.pendingSources.push(source);
+    if (best && bestDist <= openDist) {
+      best.source = source;
+      this.lastSource = { kind: "line", line: best };
+    } else {
+      this.pendingSources.push(source);
+      this.lastSource = { kind: "pending" };
+    }
   }
 
   snapshot(): SegmenterSnapshot {

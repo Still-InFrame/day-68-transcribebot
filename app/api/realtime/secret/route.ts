@@ -41,8 +41,10 @@ export async function POST(req: Request) {
       session: {
         model: "gpt-realtime-translate",
         audio: {
-          // Source-language captions require explicitly enabling input transcription
-          input: { transcription: { model: "gpt-4o-mini-transcribe" } },
+          // Source-language captions require explicitly enabling input
+          // transcription. Full (non-mini) model: noticeably better on
+          // accents/mic noise for ~fractions of a cent per minute more.
+          input: { transcription: { model: "gpt-4o-transcribe" } },
           output: { language: targetLang },
         },
       },
