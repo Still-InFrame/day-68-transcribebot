@@ -1,5 +1,7 @@
 # transcribebot
 
+**Live:** https://transcribebot.100dayaichallenge.com
+
 <!-- deploy.sh inserts a **Live:** line here automatically -->
 
 ![transcribebot — one-line description](./public/hero.png)
