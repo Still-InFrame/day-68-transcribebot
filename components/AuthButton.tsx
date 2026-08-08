@@ -12,8 +12,15 @@ type Usage = {
   anonSessionsLeft: number | null;
 };
 
-// Sign-in + live usage chip. refreshKey bumps re-fetch (e.g. after a session).
-export default function AuthButton({ refreshKey = 0 }: { refreshKey?: number }) {
+// Sign-in + live usage chip. refreshKey bumps re-fetch (e.g. after a session);
+// onUsage lets the parent react to auth state (e.g. reveal Broadcast).
+export default function AuthButton({
+  refreshKey = 0,
+  onUsage,
+}: {
+  refreshKey?: number;
+  onUsage?: (u: { signedIn: boolean }) => void;
+}) {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -21,11 +28,16 @@ export default function AuthButton({ refreshKey = 0 }: { refreshKey?: number }) 
     let alive = true;
     fetch("/api/usage")
       .then((r) => r.json())
-      .then((d) => alive && setUsage(d))
+      .then((d) => {
+        if (!alive) return;
+        setUsage(d);
+        onUsage?.({ signedIn: Boolean(d?.signedIn) });
+      })
       .catch(() => {});
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
   function signIn() {

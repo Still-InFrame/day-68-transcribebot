@@ -25,8 +25,10 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
   const [gate, setGate] = useState<"none" | "explain" | "denied">("none");
   const [stage, setStage] = useState(false);
   const [presets, setPresets] = useState<Preset[]>([]);
-  // Listen-along rooms (feature-flagged rollout via ?rooms=1)
-  const roomsEnabled = search.get("rooms") === "1";
+  // Listen-along rooms: visible to signed-in users (speaker accountability +
+  // a sign-in incentive); ?rooms=1 remains as an anonymous override for demos.
+  const [signedIn, setSignedIn] = useState(false);
+  const roomsEnabled = signedIn || search.get("rooms") === "1";
   const [room, setRoom] = useState<{ code: string; token: string; qr: string } | null>(null);
   const lastRelayedRef = useRef(0);
 
@@ -168,7 +170,10 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
             ((•)) Broadcast
           </button>
         )}
-        <AuthButton refreshKey={s.status === "ended" ? 1 : 0} />
+        <AuthButton
+          refreshKey={s.status === "ended" ? 1 : 0}
+          onUsage={(u) => setSignedIn(u.signedIn)}
+        />
       </header>
 
       {room && (
