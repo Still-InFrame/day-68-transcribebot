@@ -31,6 +31,7 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
   const roomsEnabled = signedIn || search.get("rooms") === "1";
   const [room, setRoom] = useState<{ code: string; token: string; qr: string } | null>(null);
   const lastRelayedRef = useRef(0);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("tb.target");
@@ -147,29 +148,54 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
         </Link>
         <div className="flex-1" />
         <LanguagePicker value={targetLang} onChange={setTargetLang} disabled={busy} />
-        <button
-          onClick={() => s.setVoiceOn(!s.voiceOn)}
-          className={`glass rounded-xl px-3 py-2 text-sm transition ${s.voiceOn ? "" : "text-muted"}`}
-          title={s.voiceOn ? "Translated voice on" : "Translated voice muted"}
-        >
-          {s.voiceOn ? "🔊 Voice" : "🔇 Voice"}
-        </button>
-        <button
-          onClick={() => setStage(true)}
-          className="glass rounded-xl px-3 py-2 text-sm hover:bg-white/10"
-          title="Full-screen caption display"
-        >
-          ⛶ Stage
-        </button>
-        {roomsEnabled && !room && (
+        <div className="relative">
           <button
-            onClick={startBroadcast}
+            onClick={() => setMenuOpen((o) => !o)}
             className="glass rounded-xl px-3 py-2 text-sm hover:bg-white/10"
-            title="Open a listen-along room — audience reads in their own language"
+            title="Options"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
           >
-            ((•)) Broadcast
+            ⋯
           </button>
-        )}
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} aria-hidden />
+              <div className="absolute right-0 top-11 z-30 glass rounded-xl p-2 flex flex-col min-w-52 bg-surface/95">
+                <button
+                  onClick={() => s.setVoiceOn(!s.voiceOn)}
+                  className="px-3 py-2 text-sm text-left rounded-lg hover:bg-white/10 flex items-center gap-2"
+                >
+                  <span>{s.voiceOn ? "🔊" : "🔇"}</span>
+                  Translated voice
+                  <span className={`ml-auto text-xs ${s.voiceOn ? "text-emerald-400" : "text-muted"}`}>
+                    {s.voiceOn ? "On" : "Off"}
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setStage(true);
+                  }}
+                  className="px-3 py-2 text-sm text-left rounded-lg hover:bg-white/10 flex items-center gap-2"
+                >
+                  <span>⛶</span> Stage mode
+                </button>
+                {roomsEnabled && !room && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void startBroadcast();
+                    }}
+                    className="px-3 py-2 text-sm text-left rounded-lg hover:bg-white/10 flex items-center gap-2"
+                  >
+                    <span>((•))</span> Broadcast room
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <AuthButton
           refreshKey={s.status === "ended" ? 1 : 0}
           onUsage={(u) => setSignedIn(u.signedIn)}
