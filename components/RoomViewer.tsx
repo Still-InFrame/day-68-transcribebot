@@ -7,14 +7,22 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { OUTPUT_LANGUAGES } from "@/lib/languages";
 
 type RoomLine = { id: number; text: string; source: string; ts: number };
+type RoomPartial = { lang: string; text: string; ts: number };
 
 // Audience view: scan the QR, pick YOUR language, read along. No account,
 // no mic — just captions streaming in.
 export default function RoomViewer({ code }: { code: string }) {
   const [lang, setLang] = useState<string | null>(null);
   const [lines, setLines] = useState<RoomLine[]>([]);
+  const [partial, setPartial] = useState<RoomPartial | null>(null);
+  const [now, setNow] = useState(0); // ticks so the talking pulse can expire
   const channelRef = useRef<RealtimeChannel | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!lang) return;
@@ -34,12 +42,26 @@ export default function RoomViewer({ code }: { code: string }) {
       .on("broadcast", { event: "line" }, ({ payload }) => {
         const p = payload as RoomLine;
         setLines((prev) => [...prev.slice(-80), p]);
+        // A finalized line supersedes the streaming partial in the same language.
+        setPartial((prev) => (prev && prev.lang === lang ? null : prev));
       })
       .subscribe();
     channelRef.current = channel;
+
+    // The speaker streams live partials in THEIR target language; if it
+    // matches ours we render word-by-word, otherwise it's a talking pulse.
+    const partialChannel = supabase
+      .channel(`room:${code}:partial`)
+      .on("broadcast", { event: "partial" }, ({ payload }) => {
+        setPartial(payload as RoomPartial);
+      })
+      .subscribe();
+
     setLines([]);
+    setPartial(null);
     return () => {
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(partialChannel);
       channelRef.current = null;
     };
   }, [code, lang]);
@@ -98,6 +120,19 @@ export default function RoomViewer({ code }: { code: string }) {
             {l.text}
           </p>
         ))}
+        {partial && partial.text && partial.lang === lang && (
+          <p
+            lang={lang}
+            dir={rtl ? "rtl" : "ltr"}
+            className="text-2xl leading-snug font-medium text-foreground/80 caption-partial"
+          >
+            {partial.text}
+            <span className="inline-block w-2 h-6 mx-1 align-middle bg-aurora-cyan/70 rounded-sm" />
+          </p>
+        )}
+        {partial && partial.text && partial.lang !== lang && now - partial.ts < 4000 && (
+          <p className="text-xs text-muted animate-pulse">● speaker is talking…</p>
+        )}
       </div>
       <footer className="pt-3 text-center">
         <Link href="/" className="text-xs text-muted hover:text-foreground transition">

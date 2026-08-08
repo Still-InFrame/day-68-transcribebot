@@ -179,7 +179,7 @@ export function useTranslatorSession() {
           setAnalyser(makeAnalyser(ctx, stream));
         }
 
-        const seg = new Segmenter();
+        const seg = new Segmenter(["ja", "zh"].includes(targetLang));
         segRef.current = seg;
 
         const client = new RealtimeTranslationClient(stream, targetLang, {

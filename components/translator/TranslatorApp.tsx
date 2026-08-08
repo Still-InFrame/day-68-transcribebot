@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { langByCode } from "@/lib/languages";
 import AuthButton from "@/components/AuthButton";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useTranslatorSession } from "./useTranslatorSession";
 import Waveform from "./Waveform";
 import CaptionStream from "./CaptionStream";
@@ -32,6 +34,10 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
   const [room, setRoom] = useState<{ code: string; token: string; qr: string } | null>(null);
   const lastRelayedRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const partialChannelRef = useRef<RealtimeChannel | null>(null);
+  const lastPartialSentAtRef = useRef(0);
+  const lastPartialTextRef = useRef("");
 
   useEffect(() => {
     const saved = localStorage.getItem("tb.target");
@@ -84,6 +90,38 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
       }).catch(() => {});
     }
   }, [s.lines, room, targetLang]);
+
+  // Live partial stream to the room, straight from the speaker's browser —
+  // viewers matching the speaker's target language read word-by-word; others
+  // use it as a "speaker is talking" heartbeat. Throttled; zero API cost.
+  useEffect(() => {
+    if (!room) return;
+    const sb = supabaseBrowser();
+    const ch = sb.channel(`room:${room.code}:partial`);
+    ch.subscribe();
+    partialChannelRef.current = ch;
+    return () => {
+      void sb.removeChannel(ch);
+      partialChannelRef.current = null;
+    };
+  }, [room]);
+
+  useEffect(() => {
+    const ch = partialChannelRef.current;
+    if (!ch || !room) return;
+    const text = s.partialTranslated;
+    if (text === lastPartialTextRef.current) return;
+    const now = performance.now();
+    const clearing = text === "" && lastPartialTextRef.current !== "";
+    if (!clearing && now - lastPartialSentAtRef.current < 250) return;
+    lastPartialSentAtRef.current = now;
+    lastPartialTextRef.current = text;
+    void ch.send({
+      type: "broadcast",
+      event: "partial",
+      payload: { lang: targetLang, text, ts: Date.now() },
+    });
+  }, [s.partialTranslated, room, targetLang]);
 
   async function startBroadcast() {
     const r = await fetch("/api/room", { method: "POST" });
@@ -213,10 +251,16 @@ export default function TranslatorApp({ initialTarget }: { initialTarget: string
               language. Captions fan out as you speak.
             </p>
             <button
-              className="text-xs text-aurora-cyan hover:underline"
-              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/r/${room.code}`)}
+              className={`text-xs transition-all duration-200 ${
+                linkCopied ? "text-emerald-400 scale-105" : "text-aurora-cyan hover:underline"
+              }`}
+              onClick={() => {
+                void navigator.clipboard.writeText(`${window.location.origin}/r/${room.code}`);
+                setLinkCopied(true);
+                setTimeout(() => setLinkCopied(false), 1500);
+              }}
             >
-              Copy link
+              {linkCopied ? "Copied ✓" : "Copy link"}
             </button>
           </div>
           <button

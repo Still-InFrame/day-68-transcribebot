@@ -44,6 +44,11 @@ export class Segmenter {
   private lines: CaptionLine[] = [];
   private nextId = 1;
 
+  // The model occasionally emits deltas missing their leading space
+  // ("welcome"+"to"). Repair on join — except for scripts that don't
+  // space-delimit (ja/zh), where inserting spaces would corrupt text.
+  constructor(private noSpaceJoin = false) {}
+
   private outText = "";
   private outStartMs = -1;
   private outLastMs = 0;
@@ -74,6 +79,14 @@ export class Segmenter {
       this.finalizeOutput(this.outLastMs);
     }
     if (this.outText === "") this.outStartMs = at;
+    if (
+      !this.noSpaceJoin &&
+      this.outText !== "" &&
+      !/\s$/.test(this.outText) &&
+      /^[\p{L}\p{N}(]/u.test(delta)
+    ) {
+      this.outText += " ";
+    }
     this.outText += delta;
     this.outLastMs = at;
     this.outLastWallMs = wallMs;
