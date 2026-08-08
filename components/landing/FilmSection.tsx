@@ -51,7 +51,7 @@ export default function FilmSection() {
           className="w-full rounded-2xl glass"
         />
         <figcaption className="text-xs text-muted pt-2">
-          The 30-second film — one shot, from one voice to a room full of phones.
+          Every light is someone reading in their own language.
         </figcaption>
       </figure>
     </section>
